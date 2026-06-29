@@ -42,6 +42,17 @@ on:
         description: "Window height"
         required: false
         default: 780
+      window_specs:
+        description: "Route windows (comma-separated), e.g. live=/live"
+        required: false
+      multi_window:
+        description: "Enable multi-route windows (--multi-window)"
+        required: false
+        default: false
+      show_system_tray:
+        description: "Show system tray icon (--show-system-tray)"
+        required: false
+        default: false
   workflow_call:
     inputs:
       name:
@@ -88,6 +99,20 @@ on:
         type: number
         required: false
         default: 780
+      window_specs:
+        description: "Route windows (comma-separated), e.g. live=/live"
+        type: string
+        required: false
+      multi_window:
+        description: "Enable multi-route windows (--multi-window)"
+        type: boolean
+        required: false
+        default: false
+      show_system_tray:
+        description: "Show system tray icon (--show-system-tray)"
+        type: boolean
+        required: false
+        default: false
     secrets:
       PAKE_SIGNING_IDENTITY:
         required: false
@@ -221,6 +246,12 @@ jobs:
           ARGS+=("--width" "${{ inputs.width }}")
           ARGS+=("--height" "${{ inputs.height }}")
 
+          source .github/scripts/append-pake-window-args.sh
+          export PAKE_WINDOW_SPECS="${{ inputs.window_specs }}"
+          export PAKE_MULTI_WINDOW="${{ inputs.multi_window }}"
+          export PAKE_SHOW_SYSTEM_TRAY="${{ inputs.show_system_tray }}"
+          append_pake_window_args
+
           # Build once with multiple targets (faster than separate builds)
           node dist/cli.js "${ARGS[@]}" --targets deb,appimage
 
@@ -274,6 +305,12 @@ jobs:
 
           ARGS+=("--width" "${{ inputs.width }}")
           ARGS+=("--height" "${{ inputs.height }}")
+
+          source .github/scripts/append-pake-window-args.sh
+          export PAKE_WINDOW_SPECS="${{ inputs.window_specs }}"
+          export PAKE_MULTI_WINDOW="${{ inputs.multi_window }}"
+          export PAKE_SHOW_SYSTEM_TRAY="${{ inputs.show_system_tray }}"
+          append_pake_window_args
 
           node dist/cli.js "${ARGS[@]}" --targets universal --multi-arch
 
@@ -352,6 +389,12 @@ jobs:
           $args += "--height", "${{ inputs.height }}"
 
           $args += "--targets", "x64"
+
+          . .github/scripts/Append-PakeWindowArgs.ps1
+          Append-PakeWindowArgs -CliArgs ([ref]$args) `
+            -WindowSpecs "${{ inputs.window_specs }}" `
+            -MultiWindow "${{ inputs.multi_window }}" `
+            -ShowSystemTray "${{ inputs.show_system_tray }}"
 
           node dist/cli.js $args
 

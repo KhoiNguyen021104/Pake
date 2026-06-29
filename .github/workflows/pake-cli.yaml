@@ -62,6 +62,19 @@ on:
         description: "Package formats (comma-separated: deb,appimage,rpm,zst)"
         required: false
         default: "deb"
+      window_specs:
+        description: "Route windows (comma-separated), e.g. live=/live"
+        required: false
+      multi_window:
+        description: "Enable multi-route windows (--multi-window)"
+        required: false
+        type: boolean
+        default: false
+      show_system_tray:
+        description: "Show system tray icon (--show-system-tray)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -150,6 +163,12 @@ jobs:
             ARGS+=("--targets" "${{ inputs.targets }}")
           fi
 
+          source .github/scripts/append-pake-window-args.sh
+          export PAKE_WINDOW_SPECS="${{ inputs.window_specs }}"
+          export PAKE_MULTI_WINDOW="${{ inputs.multi_window }}"
+          export PAKE_SHOW_SYSTEM_TRAY="${{ inputs.show_system_tray }}"
+          append_pake_window_args
+
           echo "Running: node dist/cli.js ${ARGS[@]}"
           node dist/cli.js "${ARGS[@]}"
 
@@ -191,6 +210,12 @@ jobs:
           if ("${{ inputs.hide_title_bar }}" -eq "true") {
             $args += "--hide-title-bar"
           }
+
+          . .github/scripts/Append-PakeWindowArgs.ps1
+          Append-PakeWindowArgs -CliArgs ([ref]$args) `
+            -WindowSpecs "${{ inputs.window_specs }}" `
+            -MultiWindow "${{ inputs.multi_window }}" `
+            -ShowSystemTray "${{ inputs.show_system_tray }}"
 
           Write-Host "Running: node dist/cli.js $($args -join ' ')"
           node dist/cli.js $args
