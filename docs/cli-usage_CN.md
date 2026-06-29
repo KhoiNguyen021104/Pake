@@ -530,7 +530,7 @@ PAKE_WINDOWS="camera=/camera,monitor=/monitor" pnpm run dev:multi
 在打包页面内可通过以下方式打开已注册的路由窗口：
 
 ```javascript
-await window.__TAURI__.core.invoke('open_pake_window', { label: 'camera' });
+await window.__TAURI__.core.invoke("open_pake_window", { label: "camera" });
 ```
 
 仅接受构建时通过 `--window` 声明的标签。

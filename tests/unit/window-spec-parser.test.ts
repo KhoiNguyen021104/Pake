@@ -20,15 +20,17 @@ describe('parseWindowSpec', () => {
   });
 
   it('rejects missing label', () => {
-    expect(() => parseWindowSpec('=/camera')).toThrow(/Invalid --window format/);
+    expect(() => parseWindowSpec('=/camera')).toThrow(
+      /Invalid --window format/,
+    );
   });
 });
 
 describe('resolveWindowUrl', () => {
   it('resolves relative path against base URL', () => {
-    expect(
-      resolveWindowUrl('https://my-web.com/dashboard', '/camera'),
-    ).toBe('https://my-web.com/camera');
+    expect(resolveWindowUrl('https://my-web.com/dashboard', '/camera')).toBe(
+      'https://my-web.com/camera',
+    );
   });
 
   it('passes through full URL with same origin', () => {
@@ -46,16 +48,14 @@ describe('normalizeMsysMangledPath', () => {
     expect(normalizeMsysMangledPath('c:/Program%20Files/Git/live')).toBe(
       '/live',
     );
-    expect(normalizeMsysMangledPath('C:/Program Files/Git/live')).toBe(
-      '/live',
-    );
+    expect(normalizeMsysMangledPath('C:/Program Files/Git/live')).toBe('/live');
   });
 
   it('leaves normal paths unchanged', () => {
     expect(normalizeMsysMangledPath('/live')).toBe('/live');
-    expect(
-      normalizeMsysMangledPath('https://cloud-camera.beex.vn/live'),
-    ).toBe('https://cloud-camera.beex.vn/live');
+    expect(normalizeMsysMangledPath('https://cloud-camera.beex.vn/live')).toBe(
+      'https://cloud-camera.beex.vn/live',
+    );
   });
 });
 

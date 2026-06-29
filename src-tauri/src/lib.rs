@@ -21,8 +21,8 @@ const GDK_BACKEND: &str = "GDK_BACKEND";
 
 use app::{
     invoke::{
-        clear_dock_badge, download_file, increment_dock_badge, open_pake_window,
-        send_notification, set_dock_badge, set_dock_badge_label, update_theme_mode,
+        clear_dock_badge, download_file, increment_dock_badge, open_pake_window, send_notification,
+        set_dock_badge, set_dock_badge_label, update_theme_mode,
     },
     setup::{set_global_shortcut, set_system_tray},
     window::{open_additional_window_safe, set_window, MultiWindowState},

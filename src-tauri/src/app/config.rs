@@ -106,9 +106,7 @@ impl PakeConfig {
                 .unwrap_or(MAIN_WINDOW_LABEL);
 
             if !seen.insert(label.to_string()) {
-                return Err(format!(
-                    "Duplicate window label '{label}' in pake.json"
-                ));
+                return Err(format!("Duplicate window label '{label}' in pake.json"));
             }
         }
         Ok(())
@@ -157,10 +155,7 @@ impl PakeConfig {
 
     pub fn is_route_instance_label(&self, label: &str) -> bool {
         self.route_window_templates().iter().any(|template| {
-            let Some(template_label) = template
-                .label
-                .as_deref()
-                .filter(|value| !value.is_empty())
+            let Some(template_label) = template.label.as_deref().filter(|value| !value.is_empty())
             else {
                 return false;
             };
@@ -179,10 +174,7 @@ impl PakeConfig {
         }
 
         for template in self.route_window_templates() {
-            let Some(template_label) = template
-                .label
-                .as_deref()
-                .filter(|value| !value.is_empty())
+            let Some(template_label) = template.label.as_deref().filter(|value| !value.is_empty())
             else {
                 continue;
             };

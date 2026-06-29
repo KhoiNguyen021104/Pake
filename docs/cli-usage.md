@@ -532,7 +532,7 @@ PAKE_WINDOWS="camera=/camera,monitor=/monitor" pnpm run dev:multi
 From JavaScript inside the packaged page you can open a registered route window with:
 
 ```javascript
-await window.__TAURI__.core.invoke('open_pake_window', { label: 'camera' });
+await window.__TAURI__.core.invoke("open_pake_window", { label: "camera" });
 ```
 
 Only labels declared via `--window` at build time are accepted.
