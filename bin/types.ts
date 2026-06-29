@@ -140,6 +140,9 @@ export interface PakeCliOptions {
 
   // Request microphone entitlement on macOS, default false
   microphone: boolean;
+
+  // Additional route windows: <label>=<path> (repeatable via --window)
+  window: string[];
 }
 
 export interface PakeAppOptions extends PakeCliOptions {
@@ -153,6 +156,7 @@ export interface PlatformSpecific<T> {
 }
 
 export interface WindowConfig {
+  label?: string;
   url: string;
   hide_title_bar: boolean;
   fullscreen: boolean;

@@ -1,11 +1,12 @@
-use crate::app::config::PakeConfig;
+use crate::app::config::{PakeConfig, WindowConfig, MAIN_WINDOW_LABEL};
 use crate::util::{
     check_file_or_append, get_data_dir, get_download_message_with_lang, show_toast, MessageType,
 };
 use std::{
+    collections::HashMap,
     path::PathBuf,
     str::FromStr,
-    sync::atomic::{AtomicU32, Ordering},
+    sync::{atomic::{AtomicU32, Ordering}, Mutex},
 };
 use tauri::{
     webview::{DownloadEvent, NewWindowFeatures, NewWindowResponse},
@@ -36,7 +37,9 @@ fn build_proxy_browser_arg(url: &Url) -> Option<String> {
 pub struct MultiWindowState {
     pub pake_config: PakeConfig,
     pub tauri_config: Config,
-    next_window_index: AtomicU32,
+    next_popup_index: AtomicU32,
+    next_route_index: AtomicU32,
+    route_instance_counters: Mutex<HashMap<String, u32>>,
 }
 
 impl MultiWindowState {
@@ -44,13 +47,51 @@ impl MultiWindowState {
         Self {
             pake_config,
             tauri_config,
-            next_window_index: AtomicU32::new(0),
+            next_popup_index: AtomicU32::new(0),
+            next_route_index: AtomicU32::new(0),
+            route_instance_counters: Mutex::new(HashMap::new()),
         }
     }
 
-    fn next_window_label(&self) -> String {
-        let index = self.next_window_index.fetch_add(1, Ordering::Relaxed) + 1;
+    fn next_popup_label(&self) -> String {
+        let index = self.next_popup_index.fetch_add(1, Ordering::Relaxed) + 1;
         format!("pake-{index}")
+    }
+
+    fn next_route_instance_label(&self, template_label: &str) -> String {
+        let mut counters = self
+            .route_instance_counters
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let count = counters.entry(template_label.to_string()).or_insert(0);
+        *count += 1;
+        format!("{template_label}-{count}")
+    }
+
+    fn route_templates(&self) -> Vec<WindowConfig> {
+        self.pake_config
+            .route_window_templates()
+            .into_iter()
+            .cloned()
+            .collect()
+    }
+
+    fn next_route_template(&self) -> Option<WindowConfig> {
+        let templates = self.route_templates();
+        if templates.is_empty() {
+            return None;
+        }
+
+        let start = self.next_route_index.fetch_add(1, Ordering::Relaxed) as usize;
+        Some(templates[start % templates.len()].clone())
+    }
+
+    fn route_template_label(template: &WindowConfig) -> &str {
+        template
+            .label
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .unwrap_or(MAIN_WINDOW_LABEL)
     }
 }
 
@@ -59,13 +100,131 @@ pub fn set_window(
     config: &PakeConfig,
     tauri_config: &Config,
 ) -> tauri::Result<WebviewWindow> {
-    build_window_with_label(app, config, tauri_config, "pake")
+    let main_label = config.main_window_label();
+    let window_config = config.windows.first().ok_or_else(|| {
+        tauri::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "pake.json must define at least one window configuration",
+        ))
+    })?;
+    build_window_with_config(app, config, tauri_config, main_label, window_config)
+}
+
+pub fn open_window_by_label(app: &AppHandle, label: &str) -> tauri::Result<WebviewWindow> {
+    if let Some(existing) = app.get_webview_window(label) {
+        let _ = existing.unminimize();
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(existing);
+    }
+
+    let state = app.state::<MultiWindowState>();
+    let window_config = state
+        .pake_config
+        .resolve_window_config(label)
+        .map_err(|error| {
+            tauri::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                error,
+            ))
+        })?;
+
+    let window = build_window_with_config(
+        app,
+        &state.pake_config,
+        &state.tauri_config,
+        label,
+        window_config,
+    )?;
+    let _ = window.show();
+    let _ = window.set_focus();
+    Ok(window)
+}
+
+pub fn open_route_template_window(
+    app: &AppHandle,
+    template_label: &str,
+) -> tauri::Result<WebviewWindow> {
+    let state = app.state::<MultiWindowState>();
+    let window_config = state
+        .pake_config
+        .window_config_by_label(template_label)
+        .map_err(|error| {
+            tauri::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                error,
+            ))
+        })?;
+    let instance_label = state.next_route_instance_label(template_label);
+    let window = build_window_with_config(
+        app,
+        &state.pake_config,
+        &state.tauri_config,
+        &instance_label,
+        window_config,
+    )?;
+    let _ = window.show();
+    let _ = window.set_focus();
+    Ok(window)
+}
+
+pub fn open_route_template_window_safe(app: &AppHandle, template_label: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let app_handle = app.clone();
+        let template_label = template_label.to_string();
+        std::thread::spawn(move || {
+            let _ = open_route_template_window(&app_handle, &template_label);
+        });
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = open_route_template_window(app, template_label);
+    }
+}
+
+#[allow(dead_code)]
+pub fn open_window_by_label_safe(app: &AppHandle, label: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let app_handle = app.clone();
+        let label = label.to_string();
+        std::thread::spawn(move || {
+            let _ = open_window_by_label(&app_handle, &label);
+        });
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = open_window_by_label(app, label);
+    }
 }
 
 pub fn open_additional_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let state = app.state::<MultiWindowState>();
-    let label = state.next_window_label();
-    build_window_with_label(app, &state.pake_config, &state.tauri_config, &label)
+
+    if state.pake_config.has_route_templates() {
+        if let Some(template) = state.next_route_template() {
+            let label = MultiWindowState::route_template_label(&template);
+            return open_route_template_window(app, label);
+        }
+    }
+
+    let window_config = state.pake_config.windows.first().ok_or_else(|| {
+        tauri::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "pake.json must define at least one window configuration",
+        ))
+    })?;
+    let label = state.next_popup_label();
+    build_window_with_config(
+        app,
+        &state.pake_config,
+        &state.tauri_config,
+        &label,
+        window_config,
+    )
 }
 
 struct WindowBuildOptions<'a> {
@@ -83,11 +242,22 @@ fn open_requested_window(
     features: NewWindowFeatures,
 ) -> tauri::Result<WebviewWindow> {
     let state = app.state::<MultiWindowState>();
-    let label = state.next_window_label();
+    let label = state.next_popup_label();
+    let popup_config = config
+        .windows
+        .first()
+        .cloned()
+        .ok_or_else(|| {
+            tauri::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "pake.json must define at least one window configuration",
+            ))
+        })?;
     let window = build_window(
         app,
         config,
         tauri_config,
+        &popup_config,
         WindowBuildOptions {
             label: &label,
             url: WebviewUrl::External(target_url.clone()),
@@ -124,21 +294,10 @@ pub fn open_additional_window_safe(app: &AppHandle) {
     }
 }
 
-fn build_window_with_label(
-    app: &AppHandle,
-    config: &PakeConfig,
-    tauri_config: &Config,
-    label: &str,
-) -> tauri::Result<WebviewWindow> {
-    let window_config = config.windows.first().ok_or_else(|| {
-        tauri::Error::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "pake.json must define at least one window configuration",
-        ))
-    })?;
-    let url = match window_config.url_type.as_str() {
+fn webview_url_for_config(window_config: &WindowConfig) -> tauri::Result<WebviewUrl> {
+    match window_config.url_type.as_str() {
         "web" => {
-            let parsed = window_config.url.parse().map_err(|err| {
+            let parsed = window_config.url.parse::<Url>().map_err(|err| {
                 tauri::Error::Io(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     format!(
@@ -147,21 +306,34 @@ fn build_window_with_label(
                     ),
                 ))
             })?;
-            WebviewUrl::App(parsed)
+            if parsed.scheme() == "http" || parsed.scheme() == "https" {
+                Ok(WebviewUrl::External(parsed))
+            } else {
+                Ok(WebviewUrl::App(PathBuf::from(parsed.path())))
+            }
         }
-        "local" => WebviewUrl::App(PathBuf::from(&window_config.url)),
-        other => {
-            return Err(tauri::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!("url_type must be 'web' or 'local', got '{other}'"),
-            )));
-        }
-    };
+        "local" => Ok(WebviewUrl::App(PathBuf::from(&window_config.url))),
+        other => Err(tauri::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("url_type must be 'web' or 'local', got '{other}'"),
+        ))),
+    }
+}
+
+fn build_window_with_config(
+    app: &AppHandle,
+    config: &PakeConfig,
+    tauri_config: &Config,
+    label: &str,
+    window_config: &WindowConfig,
+) -> tauri::Result<WebviewWindow> {
+    let url = webview_url_for_config(window_config)?;
 
     build_window(
         app,
         config,
         tauri_config,
+        window_config,
         WindowBuildOptions {
             label,
             url,
@@ -175,6 +347,7 @@ fn build_window(
     app: &AppHandle,
     config: &PakeConfig,
     tauri_config: &Config,
+    window_config: &WindowConfig,
     opts: WindowBuildOptions,
 ) -> tauri::Result<WebviewWindow> {
     let WindowBuildOptions {
@@ -189,18 +362,11 @@ fn build_window(
         .unwrap_or_else(|| "pake".to_string());
     let _data_dir = get_data_dir(app, package_name).map_err(tauri::Error::Io)?;
 
-    let window_config = config.windows.first().ok_or_else(|| {
-        tauri::Error::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "pake.json must define at least one window configuration",
-        ))
-    })?;
-
     let user_agent = config.user_agent.get();
 
     let config_script = format!(
         "window.pakeConfig = {}",
-        serde_json::to_string(&window_config).unwrap_or_else(|_| "{}".to_string())
+        serde_json::to_string(window_config).unwrap_or_else(|_| "{}".to_string())
     );
 
     // Platform-specific title: macOS prefers empty, others fallback to product name
@@ -472,7 +638,7 @@ fn build_window(
                 path: _,
                 success,
             } => {
-                if let Some(window) = download_handle.get_webview_window("pake") {
+                if let Some(window) = download_handle.get_webview_window(MAIN_WINDOW_LABEL) {
                     let message_type = if success {
                         MessageType::Success
                     } else {
@@ -489,6 +655,140 @@ fn build_window(
     window_builder = window_builder.on_navigation(|_| true);
 
     window_builder.build()
+}
+
+#[cfg(test)]
+mod window_config_tests {
+    use super::*;
+    use crate::app::config::{FunctionON, UserAgent};
+
+    fn sample_window(label: Option<&str>, url: &str) -> WindowConfig {
+        WindowConfig {
+            url: url.to_string(),
+            hide_title_bar: false,
+            fullscreen: false,
+            maximize: false,
+            width: 1200.0,
+            height: 780.0,
+            resizable: true,
+            url_type: "web".to_string(),
+            always_on_top: false,
+            dark_mode: false,
+            disabled_web_shortcuts: false,
+            activation_shortcut: String::new(),
+            hide_on_close: true,
+            incognito: false,
+            title: None,
+            enable_wasm: false,
+            enable_drag_drop: false,
+            new_window: false,
+            label: label.map(str::to_string),
+            start_to_tray: false,
+            force_internal_navigation: false,
+            internal_url_regex: String::new(),
+            enable_find: false,
+            zoom: 100,
+            min_width: 0.0,
+            min_height: 0.0,
+            ignore_certificate_errors: false,
+        }
+    }
+
+    fn sample_config(windows: Vec<WindowConfig>) -> PakeConfig {
+        PakeConfig {
+            windows,
+            user_agent: UserAgent {
+                macos: String::new(),
+                linux: String::new(),
+                windows: String::new(),
+            },
+            system_tray: FunctionON {
+                macos: false,
+                linux: false,
+                windows: false,
+            },
+            system_tray_path: String::new(),
+            proxy_url: String::new(),
+            multi_instance: false,
+            multi_window: true,
+        }
+    }
+
+    #[test]
+    fn window_config_by_label_returns_matching_config() {
+        let config = sample_config(vec![
+            sample_window(Some("pake"), "https://my-web.com/dashboard"),
+            sample_window(Some("camera"), "https://my-web.com/camera"),
+        ]);
+
+        let camera = config.window_config_by_label("camera").unwrap();
+        assert_eq!(camera.url, "https://my-web.com/camera");
+    }
+
+    #[test]
+    fn window_config_by_label_rejects_unknown_label() {
+        let config = sample_config(vec![sample_window(
+            Some("pake"),
+            "https://my-web.com/dashboard",
+        )]);
+
+        assert!(config.window_config_by_label("unknown").is_err());
+    }
+
+    #[test]
+    fn validate_window_labels_rejects_duplicates() {
+        let config = sample_config(vec![
+            sample_window(Some("camera"), "https://my-web.com/camera"),
+            sample_window(Some("camera"), "https://my-web.com/monitor"),
+        ]);
+
+        assert!(config.validate_window_labels().is_err());
+    }
+
+    #[test]
+    fn route_window_templates_excludes_main_window() {
+        let config = sample_config(vec![
+            sample_window(Some("pake"), "https://my-web.com/dashboard"),
+            sample_window(Some("camera"), "https://my-web.com/camera"),
+        ]);
+
+        let templates = config.route_window_templates();
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0].label.as_deref(), Some("camera"));
+    }
+
+    #[test]
+    fn resolve_window_config_maps_route_instances_to_template() {
+        let config = sample_config(vec![
+            sample_window(Some("pake"), "https://my-web.com/"),
+            sample_window(Some("live"), "https://my-web.com/live"),
+        ]);
+
+        let live = config.resolve_window_config("live-2").unwrap();
+        assert_eq!(live.url, "https://my-web.com/live");
+        assert!(config.is_route_instance_label("live-3"));
+        assert!(!config.is_route_instance_label("pake-1"));
+    }
+
+    #[test]
+    fn next_route_template_round_robins_templates() {
+        let state = MultiWindowState::new(
+            sample_config(vec![
+                sample_window(Some("pake"), "https://my-web.com/"),
+                sample_window(Some("live"), "https://my-web.com/live"),
+            ]),
+            Config::default(),
+        );
+
+        let templates = state.route_templates();
+        assert_eq!(templates.len(), 1);
+        assert_eq!(
+            MultiWindowState::route_template_label(&templates[0]),
+            "live"
+        );
+        assert_eq!(state.next_route_instance_label("live"), "live-1");
+        assert_eq!(state.next_route_instance_label("live"), "live-2");
+    }
 }
 
 #[cfg(all(test, target_os = "windows"))]

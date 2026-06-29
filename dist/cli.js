@@ -53,6 +53,7 @@ var files = [
 var scripts = {
 	start: "pnpm run dev",
 	dev: "pnpm run tauri dev",
+	"dev:multi": "node scripts/dev-multi.mjs",
 	build: "tauri build",
 	"build:debug": "tauri build --debug",
 	"build:mac": "tauri build --target universal-apple-darwin",
@@ -422,6 +423,109 @@ function needsTemporaryDebForZst(targets) {
     return targets.includes('zst') && !targets.includes('deb');
 }
 
+const MAIN_WINDOW_LABEL = 'pake';
+const LABEL_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+function parseWindowSpec(spec) {
+    const eqIndex = spec.indexOf('=');
+    if (eqIndex <= 0) {
+        throw new Error(`Invalid --window format "${spec}". Expected <label>=<path>, e.g. camera=/camera`);
+    }
+    const label = spec.slice(0, eqIndex).trim();
+    const path = normalizeMsysMangledPath(spec.slice(eqIndex + 1).trim());
+    if (!path) {
+        throw new Error(`Invalid --window format "${spec}". Path must not be empty.`);
+    }
+    return { label, path };
+}
+/**
+ * Git Bash (MSYS) rewrites Unix-style CLI args: `/live` becomes
+ * `C:/Program Files/Git/live` before Node sees them. Recover the route.
+ */
+function normalizeMsysMangledPath(path) {
+    const decoded = decodeURIComponent(path).replace(/\\/g, '/');
+    const msysMatch = decoded.match(/^[a-zA-Z]:\/(?:Program Files|Program%20Files)\/Git\/(.+)$/i);
+    if (!msysMatch) {
+        return path;
+    }
+    const route = msysMatch[1];
+    return route.startsWith('/') ? route : `/${route}`;
+}
+function isWindowsFilePath(path) {
+    return /^[a-zA-Z]:[/\\]/.test(path) && !/^https?:/i.test(path);
+}
+function isValidWindowLabel(label) {
+    return LABEL_PATTERN.test(label);
+}
+function resolveWindowUrl(baseUrl, path) {
+    if (path.startsWith('/') || path.startsWith('./') || path.startsWith('../')) {
+        return new URL(path, baseUrl).href;
+    }
+    try {
+        return new URL(path).href;
+    }
+    catch {
+        return new URL(path, baseUrl).href;
+    }
+}
+function getUrlOrigin(url) {
+    return new URL(url).origin;
+}
+function validateWindowSpecs(specs, baseUrl, options = {}) {
+    const { exitOnError = true } = options;
+    const fail = (message) => {
+        logger.error(message);
+        if (exitOnError) {
+            process.exit(1);
+        }
+        throw new Error(message);
+    };
+    if (specs.length === 0) {
+        return [];
+    }
+    const baseOrigin = getUrlOrigin(baseUrl);
+    const seen = new Set();
+    const parsed = [];
+    for (const spec of specs) {
+        let entry;
+        try {
+            entry = parseWindowSpec(spec);
+        }
+        catch (error) {
+            return fail(error instanceof Error ? error.message : String(error));
+        }
+        if (entry.label === MAIN_WINDOW_LABEL) {
+            fail(`Window label "${MAIN_WINDOW_LABEL}" is reserved for the main window. Choose another label.`);
+        }
+        if (!isValidWindowLabel(entry.label)) {
+            fail(`Invalid window label "${entry.label}". Labels must match [a-zA-Z0-9-]+ and cannot start or end with a hyphen.`);
+        }
+        if (seen.has(entry.label)) {
+            fail(`Duplicate window label "${entry.label}" in --window options.`);
+        }
+        seen.add(entry.label);
+        if (isWindowsFilePath(entry.path)) {
+            fail(`Window path "${entry.path}" looks like a Windows file path (Git Bash may have rewritten /route). ` +
+                'Use MSYS_NO_PATHCONV=1 before the command, quote the value (--window "live=/live"), ' +
+                'or pass a full URL (--window live=https://example.com/live).');
+        }
+        const resolved = resolveWindowUrl(baseUrl, entry.path);
+        try {
+            const resolvedOrigin = getUrlOrigin(resolved);
+            if (resolvedOrigin !== baseOrigin) {
+                logger.warn(`✼ Window "${entry.label}" URL origin (${resolvedOrigin}) differs from main URL origin (${baseOrigin}). Session/CORS issues may occur.`);
+            }
+        }
+        catch {
+            fail(`Invalid path for window "${entry.label}": ${entry.path}`);
+        }
+        parsed.push(entry);
+    }
+    return parsed;
+}
+function collectWindowLabels(mainLabel, extraSpecs) {
+    return [mainLabel, ...extraSpecs.map((spec) => spec.label)];
+}
+
 /**
  * Pure transform from CLI options to the window-config slice that gets
  * merged into pake.json. Exposed for snapshot testing so option drift
@@ -458,6 +562,40 @@ function buildWindowConfigOverrides(options, platform = asSupportedPlatform(proc
         ignore_certificate_errors: options.ignoreCertificateErrors,
         new_window: options.newWindow,
     };
+}
+function buildMultiWindowConfig(baseUrl, windowSpecs, baseWindowConfig, mainUrl) {
+    const mainWindow = {
+        ...baseWindowConfig,
+        label: MAIN_WINDOW_LABEL,
+        url: mainUrl,
+    };
+    const extraWindows = windowSpecs.map((spec) => ({
+        ...baseWindowConfig,
+        label: spec.label,
+        url: resolveWindowUrl(baseUrl, spec.path),
+        url_type: 'web',
+    }));
+    return [mainWindow, ...extraWindows];
+}
+async function generateCapabilitiesFile(labels) {
+    const defaultCapabilityPath = path.join(npmDirectory, 'src-tauri/capabilities/default.json');
+    const generatedCapabilityPath = path.join(npmDirectory, 'src-tauri/capabilities/generated.json');
+    const defaultCapability = (await fsExtra.readJSON(defaultCapabilityPath));
+    const generated = {
+        $schema: defaultCapability.$schema,
+        identifier: 'generated',
+        description: 'Generated capability for multi-window Pake builds.',
+        webviews: labels,
+        remote: defaultCapability.remote,
+        permissions: [...defaultCapability.permissions],
+    };
+    await fsExtra.outputJSON(generatedCapabilityPath, generated, { spaces: 2 });
+}
+async function removeGeneratedCapabilitiesFile() {
+    const generatedCapabilityPath = path.join(npmDirectory, 'src-tauri/capabilities/generated.json');
+    if (await fsExtra.pathExists(generatedCapabilityPath)) {
+        await fsExtra.remove(generatedCapabilityPath);
+    }
 }
 function asSupportedPlatform(platform) {
     if (platform !== 'win32' && platform !== 'darwin' && platform !== 'linux') {
@@ -664,7 +802,7 @@ async function injectCustomCode(options, tauriConf) {
     }
     tauriConf.pake.proxy_url = proxyUrl || '';
     tauriConf.pake.multi_instance = multiInstance;
-    tauriConf.pake.multi_window = multiWindow;
+    tauriConf.pake.multi_window = multiWindow || options.window.length > 0;
     if (wasm) {
         tauriConf.app.security = {
             headers: {
@@ -717,7 +855,29 @@ async function mergeConfig(url, options, tauriConf) {
         logger.warn('✼ --hide-title-bar is only supported on macOS and will be ignored on this platform.');
     }
     const tauriConfWindowOptions = buildWindowConfigOverrides(options, platform);
-    Object.assign(tauriConf.pake.windows[0], { url, ...tauriConfWindowOptions });
+    const windowSpecs = validateWindowSpecs(options.window ?? [], url, {
+        exitOnError: true,
+    });
+    if (windowSpecs.length > 0 && !options.multiWindow) {
+        logger.warn('✼ --window requires multi-window support. Enabling --multi-window automatically.');
+    }
+    const baseWindowTemplate = {
+        ...tauriConf.pake.windows[0],
+        ...tauriConfWindowOptions,
+        url_type: 'web',
+    };
+    if (windowSpecs.length > 0) {
+        tauriConf.pake.windows = buildMultiWindowConfig(url, windowSpecs, baseWindowTemplate, url);
+        await generateCapabilitiesFile(collectWindowLabels(MAIN_WINDOW_LABEL, windowSpecs));
+    }
+    else {
+        Object.assign(tauriConf.pake.windows[0], {
+            url,
+            label: MAIN_WINDOW_LABEL,
+            ...tauriConfWindowOptions,
+        });
+        await removeGeneratedCapabilitiesFile();
+    }
     tauriConf.productName = name;
     tauriConf.identifier = identifier;
     tauriConf.version = appVersion;
@@ -2605,6 +2765,7 @@ const DEFAULT_PAKE_OPTIONS = {
     install: false,
     camera: false,
     microphone: false,
+    window: [],
 };
 
 function validateNumberInput(value) {
@@ -2732,6 +2893,15 @@ ${green('|_|   \\__,_|_|\\_\\___|  can turn any webpage into a desktop app with 
         .hideHelp())
         .addOption(new Option('--multi-window', 'Allow opening multiple windows within one app instance')
         .default(DEFAULT_PAKE_OPTIONS.multiWindow)
+        .hideHelp())
+        .addOption(new Option('--window <label=path>', 'Register an additional route window (repeatable), e.g. camera=/camera')
+        .default(DEFAULT_PAKE_OPTIONS.window)
+        .argParser((val, previous) => {
+        if (!val)
+            return DEFAULT_PAKE_OPTIONS.window;
+        const items = previous ?? [];
+        return [...items, val];
+    })
         .hideHelp())
         .addOption(new Option('--start-to-tray', 'Start app minimized to tray')
         .default(DEFAULT_PAKE_OPTIONS.startToTray)

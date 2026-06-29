@@ -1,3 +1,4 @@
+use crate::app::window::{open_route_template_window_safe, MultiWindowState};
 use crate::util::{check_file_or_append, get_download_message_with_lang, show_toast, MessageType};
 use std::fs::File;
 use std::io::Write;
@@ -190,4 +191,22 @@ pub async fn update_theme_mode(app: AppHandle, mode: String) {
         };
         let _ = window.set_theme(Some(theme));
     }
+}
+
+#[command]
+pub fn open_pake_window(app: AppHandle, label: String) -> Result<(), String> {
+    let state = app.state::<MultiWindowState>();
+    let allowed_labels: Vec<String> = state
+        .pake_config
+        .route_window_templates()
+        .into_iter()
+        .filter_map(|window| window.label.clone())
+        .collect();
+
+    if !allowed_labels.iter().any(|allowed| allowed == &label) {
+        return Err(format!("Unknown window label '{label}'"));
+    }
+
+    open_route_template_window_safe(&app, &label);
+    Ok(())
 }

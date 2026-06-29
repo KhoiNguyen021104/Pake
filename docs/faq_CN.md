@@ -387,6 +387,20 @@ EOF
 
 ## 运行时问题
 
+### 多路由窗口（`--window`）
+
+**行为：** 每个 `--window` 标签在独立 Tauri webview 中打开同一 SPA 的不同路由。各窗口的 React 状态**不共享**；在 `incognito` 关闭且同源时，cookies/localStorage 可共享。
+
+**关闭行为：** 仅主窗口（`pake`）遵循 `--hide-on-close`。次要窗口正常关闭。应用在**所有**窗口关闭或从托盘选择退出前保持运行。
+
+**能力配置：** 多路由构建会生成 `src-tauri/capabilities/generated.json`。若标签未列入该文件，次要窗口可能出现运行时权限错误（构建不会失败）。
+
+**开发模式：** 使用 `PAKE_WINDOWS="camera=/camera" pnpm run dev:multi`，或手动编辑 `src-tauri/pake.json` 及 `capabilities/default.json` 的 `webviews`。
+
+**窗口状态：** 标签在构建时固定。两次构建之间重命名标签会重置已保存的位置/大小。
+
+---
+
 ### 应用窗口太小/太大
 
 **解决方案：**

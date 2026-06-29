@@ -495,6 +495,46 @@ pake https://chat.example.com --name ChatApp --multi-instance
 pake https://chat.example.com --name ChatApp --multi-window
 ```
 
+#### [window]
+
+为单个 React/SPA 应用注册额外的路由窗口。每个 `--window` 将一个稳定的 Tauri 窗口标签映射到路由路径（或同源的完整 URL）。位置参数 `[url]` 仍是主窗口（`pake` 标签）。使用 `--window` 时会自动启用 `--multi-window`。
+
+窗口标签在构建时固定，供 `tauri-plugin-window-state` 恢复窗口位置与大小。在两次构建之间重命名标签会丢失已保存的几何信息，但不会导致崩溃。建议使用简单名词，如 `camera`、`monitor`、`settings`。
+
+```shell
+--window <label>=<path>
+
+# 示例：主 dashboard 加 camera/monitor 路由
+pake https://my-web.com/dashboard \
+  --name MyApp \
+  --window camera=/camera \
+  --window monitor=/monitor \
+  --multi-window
+```
+
+校验规则：
+
+- `pake` 为主窗口保留标签，不能用于 `--window`。
+- 标签须匹配 `[a-zA-Z0-9-]+`，且不能以 `-` 开头或结尾。
+- 重复标签会在构建前被拒绝。
+- 不同源的完整 URL 仅发出警告。
+
+能力配置：多路由构建会生成 `src-tauri/capabilities/generated.json`，包含所有 webview 标签。若该文件缺失或标签不匹配，次要窗口调用 Tauri API 时可能出现**运行时权限错误**；构建本身仍会成功。
+
+开发模式：`pnpm run dev` 直接读取 `src-tauri/pake.json`。本地多窗口测试：
+
+```shell
+PAKE_WINDOWS="camera=/camera,monitor=/monitor" pnpm run dev:multi
+```
+
+在打包页面内可通过以下方式打开已注册的路由窗口：
+
+```javascript
+await window.__TAURI__.core.invoke('open_pake_window', { label: 'camera' });
+```
+
+仅接受构建时通过 `--window` 声明的标签。
+
 #### [installer-language]
 
 设置 Windows 安装包语言。支持 `zh-CN`、`ja-JP`，更多在 [Tauri 文档](https://v2.tauri.app/distribute/windows-installer/#internationalization)。默认为 `en-US`。

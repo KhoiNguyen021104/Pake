@@ -497,6 +497,46 @@ This can improve popup-based authentication flows, but it cannot bypass provider
 pake https://chat.example.com --name ChatApp --multi-window
 ```
 
+#### [window]
+
+Register additional route windows for a single React/SPA app. Each `--window` maps a stable Tauri window label to a route path (or full URL on the same origin). The positional `[url]` remains the main window (`pake` label). `--multi-window` is enabled automatically when `--window` is used.
+
+Window labels are fixed at build time and are used by `tauri-plugin-window-state` to restore geometry. Renaming a label between builds resets saved position/size but does not crash the app. Prefer simple nouns such as `camera`, `monitor`, and `settings`.
+
+```shell
+--window <label>=<path>
+
+# Example: main dashboard plus camera/monitor routes
+pake https://my-web.com/dashboard \
+  --name MyApp \
+  --window camera=/camera \
+  --window monitor=/monitor \
+  --multi-window
+```
+
+Validation rules:
+
+- `pake` is reserved for the main window and cannot be used as a `--window` label.
+- Labels must match `[a-zA-Z0-9-]+` and cannot start or end with `-`.
+- Duplicate labels are rejected before the build starts.
+- Full URLs on a different origin only emit a warning.
+
+Capabilities: multi-route builds generate `src-tauri/capabilities/generated.json` with every webview label. If this file is missing or labels do not match, secondary windows may hit **runtime permission errors** when calling Tauri APIs; the build itself still succeeds.
+
+Dev mode: `pnpm run dev` reads `src-tauri/pake.json` directly. For local multi-window testing use:
+
+```shell
+PAKE_WINDOWS="camera=/camera,monitor=/monitor" pnpm run dev:multi
+```
+
+From JavaScript inside the packaged page you can open a registered route window with:
+
+```javascript
+await window.__TAURI__.core.invoke('open_pake_window', { label: 'camera' });
+```
+
+Only labels declared via `--window` at build time are accepted.
+
 #### [installer-language]
 
 Set the Windows Installer language. Options include `zh-CN`, `ja-JP`, More at [Tauri docs](https://v2.tauri.app/distribute/windows-installer/#internationalization). Default is `en-US`.

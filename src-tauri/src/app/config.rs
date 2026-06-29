@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub const MAIN_WINDOW_LABEL: &str = "pake";
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WindowConfig {
     pub url: String,
@@ -21,6 +23,8 @@ pub struct WindowConfig {
     pub enable_drag_drop: bool,
     #[serde(default)]
     pub new_window: bool,
+    #[serde(default)]
+    pub label: Option<String>,
     pub start_to_tray: bool,
     #[serde(default)]
     pub force_internal_navigation: bool,
@@ -90,5 +94,109 @@ pub struct PakeConfig {
 impl PakeConfig {
     pub fn show_system_tray(&self) -> bool {
         self.system_tray.copied()
+    }
+
+    pub fn validate_window_labels(&self) -> Result<(), String> {
+        let mut seen = std::collections::HashSet::new();
+        for window in &self.windows {
+            let label = window
+                .label
+                .as_deref()
+                .filter(|value| !value.is_empty())
+                .unwrap_or(MAIN_WINDOW_LABEL);
+
+            if !seen.insert(label.to_string()) {
+                return Err(format!(
+                    "Duplicate window label '{label}' in pake.json"
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn window_config_by_label(&self, label: &str) -> Result<&WindowConfig, String> {
+        self.windows
+            .iter()
+            .find(|window| {
+                window
+                    .label
+                    .as_deref()
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or(MAIN_WINDOW_LABEL)
+                    == label
+            })
+            .ok_or_else(|| format!("Unknown window label '{label}'"))
+    }
+
+    pub fn main_window_label(&self) -> &str {
+        self.windows
+            .first()
+            .and_then(|window| window.label.as_deref())
+            .filter(|label| !label.is_empty())
+            .unwrap_or(MAIN_WINDOW_LABEL)
+    }
+
+    pub fn route_window_templates(&self) -> Vec<&WindowConfig> {
+        let main_label = self.main_window_label();
+        self.windows
+            .iter()
+            .filter(|window| {
+                window
+                    .label
+                    .as_deref()
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or(MAIN_WINDOW_LABEL)
+                    != main_label
+            })
+            .collect()
+    }
+
+    pub fn has_route_templates(&self) -> bool {
+        !self.route_window_templates().is_empty()
+    }
+
+    pub fn is_route_instance_label(&self, label: &str) -> bool {
+        self.route_window_templates().iter().any(|template| {
+            let Some(template_label) = template
+                .label
+                .as_deref()
+                .filter(|value| !value.is_empty())
+            else {
+                return false;
+            };
+
+            label == template_label
+                || label
+                    .strip_prefix(template_label)
+                    .map(|suffix| suffix.starts_with('-') && !suffix[1..].is_empty())
+                    .unwrap_or(false)
+        })
+    }
+
+    pub fn resolve_window_config(&self, label: &str) -> Result<&WindowConfig, String> {
+        if let Ok(config) = self.window_config_by_label(label) {
+            return Ok(config);
+        }
+
+        for template in self.route_window_templates() {
+            let Some(template_label) = template
+                .label
+                .as_deref()
+                .filter(|value| !value.is_empty())
+            else {
+                continue;
+            };
+
+            if label == template_label
+                || label
+                    .strip_prefix(template_label)
+                    .map(|suffix| suffix.starts_with('-') && !suffix[1..].is_empty())
+                    .unwrap_or(false)
+            {
+                return Ok(template);
+            }
+        }
+
+        Err(format!("Unknown window label '{label}'"))
     }
 }

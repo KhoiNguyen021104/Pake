@@ -1,5 +1,5 @@
 // Menu functionality is only used on macOS; the module is gated in app/mod.rs.
-use crate::app::window::open_additional_window_safe;
+use crate::app::window::{open_additional_window_safe, open_route_template_window_safe};
 use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_opener::OpenerExt;
@@ -8,6 +8,7 @@ pub fn set_app_menu(
     app: &AppHandle<Wry>,
     allow_multi_window: bool,
     enable_find: bool,
+    route_window_labels: &[String],
 ) -> tauri::Result<()> {
     let pake_version = env!("CARGO_PKG_VERSION");
     let pake_menu_item_title = format!("Built with Pake V{}", pake_version);
@@ -18,7 +19,7 @@ pub fn set_app_menu(
         app,
         &[
             &app_menu(app)?,
-            &file_menu(app, allow_multi_window)?,
+            &file_menu(app, allow_multi_window, route_window_labels)?,
             &edit_menu(app, enable_find)?,
             &view_menu(app)?,
             &navigation_menu(app)?,
@@ -55,16 +56,48 @@ fn app_menu(app: &AppHandle<Wry>) -> tauri::Result<Submenu<Wry>> {
     Ok(app_menu)
 }
 
-fn file_menu(app: &AppHandle<Wry>, allow_multi_window: bool) -> tauri::Result<Submenu<Wry>> {
+fn file_menu(
+    app: &AppHandle<Wry>,
+    allow_multi_window: bool,
+    route_window_labels: &[String],
+) -> tauri::Result<Submenu<Wry>> {
     let file_menu = Submenu::new(app, "File", true)?;
     if allow_multi_window {
-        file_menu.append(&MenuItem::with_id(
-            app,
-            "new_window",
-            "New Window",
-            true,
-            Some("CmdOrCtrl+N"),
-        )?)?;
+        if route_window_labels.is_empty() {
+            file_menu.append(&MenuItem::with_id(
+                app,
+                "new_window",
+                "New Window",
+                true,
+                Some("CmdOrCtrl+N"),
+            )?)?;
+        } else if route_window_labels.len() == 1 {
+            let label = &route_window_labels[0];
+            file_menu.append(&MenuItem::with_id(
+                app,
+                format!("open_window:{label}"),
+                format!("Open {}", capitalize_label(label)),
+                true,
+                Some("CmdOrCtrl+N"),
+            )?)?;
+        } else {
+            file_menu.append(&MenuItem::with_id(
+                app,
+                "new_window",
+                "New Window",
+                true,
+                Some("CmdOrCtrl+N"),
+            )?)?;
+            for label in route_window_labels {
+                file_menu.append(&MenuItem::with_id(
+                    app,
+                    format!("open_window:{label}"),
+                    format!("Open {}", capitalize_label(label)),
+                    true,
+                    None::<&str>,
+                )?)?;
+            }
+        }
         file_menu.append(&PredefinedMenuItem::separator(app)?)?;
     }
     file_menu.append(&PredefinedMenuItem::close_window(app, None)?)?;
@@ -77,6 +110,14 @@ fn file_menu(app: &AppHandle<Wry>, allow_multi_window: bool) -> tauri::Result<Su
         Some("CmdOrCtrl+Shift+Backspace"),
     )?)?;
     Ok(file_menu)
+}
+
+fn capitalize_label(label: &str) -> String {
+    let mut chars = label.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+    }
 }
 
 fn edit_menu(app: &AppHandle<Wry>, enable_find: bool) -> tauri::Result<Submenu<Wry>> {
@@ -228,6 +269,10 @@ pub fn handle_menu_click(app_handle: &AppHandle, id: &str) {
     match id {
         "new_window" => {
             open_additional_window_safe(app_handle);
+        }
+        id if id.starts_with("open_window:") => {
+            let label = id.trim_start_matches("open_window:");
+            open_route_template_window_safe(app_handle, label);
         }
         "pake_github_link" => {
             let _ = app_handle

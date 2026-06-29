@@ -1,4 +1,4 @@
-use crate::app::window::open_additional_window_safe;
+use crate::app::window::{open_additional_window_safe, open_route_template_window_safe};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -16,6 +16,7 @@ pub fn set_system_tray(
     tray_icon_path: &str,
     _init_fullscreen: bool,
     allow_multi_window: bool,
+    route_window_labels: &[String],
 ) -> tauri::Result<()> {
     if !show_system_tray {
         app.remove_tray_by_id("pake-tray");
@@ -27,9 +28,31 @@ pub fn set_system_tray(
     let show_app = MenuItemBuilder::with_id("show_app", "Show").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
 
+    let route_menu_items: Vec<tauri::menu::MenuItem<tauri::Wry>> = route_window_labels
+        .iter()
+        .map(|label| {
+            MenuItemBuilder::with_id(
+                format!("open_window:{label}"),
+                format!("Open {}", capitalize_tray_label(label)),
+            )
+            .build(app)
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
+
     let menu = if allow_multi_window {
-        MenuBuilder::new(app)
-            .items(&[&new_window, &hide_app, &show_app, &quit])
+        let mut builder = MenuBuilder::new(app);
+        if route_window_labels.is_empty() {
+            builder = builder.item(&new_window);
+        } else if route_window_labels.len() == 1 {
+            builder = builder.item(&route_menu_items[0]);
+        } else {
+            builder = builder.item(&new_window);
+            for item in &route_menu_items {
+                builder = builder.item(item);
+            }
+        }
+        builder
+            .items(&[&hide_app, &show_app, &quit])
             .build()?
     } else {
         MenuBuilder::new(app)
@@ -44,6 +67,10 @@ pub fn set_system_tray(
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "new_window" => {
                 open_additional_window_safe(app);
+            }
+            id if id.starts_with("open_window:") => {
+                let label = id.trim_start_matches("open_window:");
+                open_route_template_window_safe(app, label);
             }
             "hide_app" => {
                 if let Some(window) = app.get_webview_window("pake") {
@@ -104,6 +131,14 @@ pub fn set_system_tray(
 
     tray.set_icon_as_template(false)?;
     Ok(())
+}
+
+fn capitalize_tray_label(label: &str) -> String {
+    let mut chars = label.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+    }
 }
 
 pub fn set_global_shortcut(

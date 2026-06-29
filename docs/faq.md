@@ -387,6 +387,20 @@ This file is already in `.gitignore` and won't be committed.
 
 ## Runtime Issues
 
+### Multi-route windows (`--window`)
+
+**Behavior:** Each `--window` label opens a different route of the same SPA in its own Tauri webview. React state is **not** shared between windows; cookies/localStorage are shared when `incognito` is off and origins match.
+
+**Close behavior:** Only the main window (`pake`) honors `--hide-on-close`. Secondary windows close normally. The app keeps running until **all** windows are closed or you choose Quit from the tray.
+
+**Capabilities:** Multi-route builds generate `src-tauri/capabilities/generated.json`. If labels are missing from that file, secondary windows may hit runtime permission errors (not build failures).
+
+**Dev mode:** Use `PAKE_WINDOWS="camera=/camera" pnpm run dev:multi`, or manually edit `src-tauri/pake.json` and `capabilities/default.json` → `webviews`.
+
+**Window state:** Labels are fixed at build time. Renaming a label between builds resets saved position/size.
+
+---
+
 ### App Window is Too Small/Large
 
 **Solution:**

@@ -179,6 +179,19 @@ ${green('|_|   \\__,_|_|\\_\\___|  can turn any webpage into a desktop app with 
         .hideHelp(),
     )
     .addOption(
+      new Option(
+        '--window <label=path>',
+        'Register an additional route window (repeatable), e.g. camera=/camera',
+      )
+        .default(DEFAULT.window)
+        .argParser((val, previous: string[] | undefined) => {
+          if (!val) return DEFAULT.window;
+          const items = previous ?? [];
+          return [...items, val];
+        })
+        .hideHelp(),
+    )
+    .addOption(
       new Option('--start-to-tray', 'Start app minimized to tray')
         .default(DEFAULT.startToTray)
         .hideHelp(),

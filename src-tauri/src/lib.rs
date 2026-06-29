@@ -21,8 +21,8 @@ const GDK_BACKEND: &str = "GDK_BACKEND";
 
 use app::{
     invoke::{
-        clear_dock_badge, download_file, increment_dock_badge, send_notification, set_dock_badge,
-        set_dock_badge_label, update_theme_mode,
+        clear_dock_badge, download_file, increment_dock_badge, open_pake_window,
+        send_notification, set_dock_badge, set_dock_badge_label, update_theme_mode,
     },
     setup::{set_global_shortcut, set_system_tray},
     window::{open_additional_window_safe, set_window, MultiWindowState},
@@ -139,6 +139,18 @@ pub fn run_app() {
     }
 
     let (pake_config, tauri_config) = get_pake_config();
+    if let Err(error) = pake_config.validate_window_labels() {
+        eprintln!("[Pake] Invalid window configuration: {error}");
+        std::process::exit(1);
+    }
+
+    let main_window_label = pake_config.main_window_label().to_string();
+    let route_window_labels: Vec<String> = pake_config
+        .route_window_templates()
+        .into_iter()
+        .filter_map(|window| window.label.clone())
+        .collect();
+
     let tauri_app = tauri::Builder::default();
 
     let show_system_tray = pake_config.show_system_tray();
@@ -192,6 +204,7 @@ pub fn run_app() {
             set_dock_badge_label,
             clear_dock_badge,
             update_theme_mode,
+            open_pake_window,
         ])
         .setup(move |app| {
             app.manage(MultiWindowState::new(
@@ -202,7 +215,12 @@ pub fn run_app() {
             // --- Menu Construction Start ---
             #[cfg(target_os = "macos")]
             {
-                app::menu::set_app_menu(app.app_handle(), multi_window, _enable_find)?;
+                app::menu::set_app_menu(
+                    app.app_handle(),
+                    multi_window,
+                    _enable_find,
+                    &route_window_labels,
+                )?;
 
                 // Event Handling for Custom Menu Item
                 app.on_menu_event(move |app_handle, event| {
@@ -218,6 +236,7 @@ pub fn run_app() {
                 &pake_config.system_tray_path,
                 init_fullscreen,
                 multi_window,
+                &route_window_labels,
             )?;
             set_global_shortcut(app.app_handle(), activation_shortcut, init_fullscreen)?;
 
@@ -251,7 +270,8 @@ pub fn run_app() {
         })
         .on_window_event(move |_window, _event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = _event {
-                if hide_on_close && _window.label() == "pake" {
+                let is_main_window = _window.label() == main_window_label;
+                if hide_on_close && is_main_window {
                     // Hide window when hide_on_close is enabled (regardless of tray status)
                     let window = _window.clone();
                     tauri::async_runtime::spawn(async move {

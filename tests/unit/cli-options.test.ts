@@ -29,6 +29,13 @@ describe('CLI options', () => {
     expect(option?.defaultValue).toBe(false);
   });
 
+  it('registers hidden --window option', () => {
+    const option = program.options.find((item) => item.long === '--window');
+
+    expect(option).toBeDefined();
+    expect(option?.defaultValue).toEqual([]);
+  });
+
   it('exposes --internal-url-regex option', () => {
     const option = program.options.find(
       (item) => item.long === '--internal-url-regex',

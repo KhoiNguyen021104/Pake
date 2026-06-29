@@ -33,6 +33,7 @@
   "scripts": {
     "start": "pnpm run dev",
     "dev": "pnpm run tauri dev",
+    "dev:multi": "node scripts/dev-multi.mjs",
     "build": "tauri build",
     "build:debug": "tauri build --debug",
     "build:mac": "tauri build --target universal-apple-darwin",

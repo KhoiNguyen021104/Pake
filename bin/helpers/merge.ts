@@ -18,6 +18,13 @@ import {
 } from '@/types';
 import { tauriConfigDirectory, npmDirectory } from '@/utils/dir';
 import { LINUX_TARGET_TYPES } from '@/utils/targets';
+import {
+  collectWindowLabels,
+  MAIN_WINDOW_LABEL,
+  ParsedWindowSpec,
+  resolveWindowUrl,
+  validateWindowSpecs,
+} from '@/utils/window';
 
 /**
  * Pure transform from CLI options to the window-config slice that gets
@@ -59,6 +66,75 @@ export function buildWindowConfigOverrides(
     ignore_certificate_errors: options.ignoreCertificateErrors,
     new_window: options.newWindow,
   };
+}
+
+export function buildMultiWindowConfig(
+  baseUrl: string,
+  windowSpecs: ParsedWindowSpec[],
+  baseWindowConfig: WindowConfig,
+  mainUrl: string,
+): WindowConfig[] {
+  const mainWindow: WindowConfig = {
+    ...baseWindowConfig,
+    label: MAIN_WINDOW_LABEL,
+    url: mainUrl,
+  };
+
+  const extraWindows = windowSpecs.map((spec) => ({
+    ...baseWindowConfig,
+    label: spec.label,
+    url: resolveWindowUrl(baseUrl, spec.path),
+    url_type: 'web',
+  }));
+
+  return [mainWindow, ...extraWindows];
+}
+
+type TauriCapability = {
+  $schema?: string;
+  identifier: string;
+  description?: string;
+  webviews: string[];
+  remote?: { urls: string[] };
+  permissions: string[];
+};
+
+export async function generateCapabilitiesFile(
+  labels: string[],
+): Promise<void> {
+  const defaultCapabilityPath = path.join(
+    npmDirectory,
+    'src-tauri/capabilities/default.json',
+  );
+  const generatedCapabilityPath = path.join(
+    npmDirectory,
+    'src-tauri/capabilities/generated.json',
+  );
+
+  const defaultCapability = (await fsExtra.readJSON(
+    defaultCapabilityPath,
+  )) as TauriCapability;
+
+  const generated: TauriCapability = {
+    $schema: defaultCapability.$schema,
+    identifier: 'generated',
+    description:
+      'Generated capability for multi-window Pake builds. Omits webviews so dynamic route instances (e.g. live-1, live-2) share permissions.',
+    remote: defaultCapability.remote,
+    permissions: [...defaultCapability.permissions],
+  };
+
+  await fsExtra.outputJSON(generatedCapabilityPath, generated, { spaces: 2 });
+}
+
+export async function removeGeneratedCapabilitiesFile(): Promise<void> {
+  const generatedCapabilityPath = path.join(
+    npmDirectory,
+    'src-tauri/capabilities/generated.json',
+  );
+  if (await fsExtra.pathExists(generatedCapabilityPath)) {
+    await fsExtra.remove(generatedCapabilityPath);
+  }
 }
 
 type PlatformIconInfo = {
@@ -348,7 +424,7 @@ async function injectCustomCode(
 
   tauriConf.pake.proxy_url = proxyUrl || '';
   tauriConf.pake.multi_instance = multiInstance;
-  tauriConf.pake.multi_window = multiWindow;
+  tauriConf.pake.multi_window = multiWindow || options.window.length > 0;
 
   if (wasm) {
     tauriConf.app.security = {
@@ -447,7 +523,40 @@ export async function mergeConfig(
     );
   }
   const tauriConfWindowOptions = buildWindowConfigOverrides(options, platform);
-  Object.assign(tauriConf.pake.windows[0], { url, ...tauriConfWindowOptions });
+  const windowSpecs = validateWindowSpecs(options.window ?? [], url, {
+    exitOnError: true,
+  });
+
+  if (windowSpecs.length > 0 && !options.multiWindow) {
+    logger.warn(
+      '✼ --window requires multi-window support. Enabling --multi-window automatically.',
+    );
+  }
+
+  const baseWindowTemplate = {
+    ...tauriConf.pake.windows[0],
+    ...tauriConfWindowOptions,
+    url_type: 'web',
+  } as WindowConfig;
+
+  if (windowSpecs.length > 0) {
+    tauriConf.pake.windows = buildMultiWindowConfig(
+      url,
+      windowSpecs,
+      baseWindowTemplate,
+      url,
+    );
+    await generateCapabilitiesFile(
+      collectWindowLabels(MAIN_WINDOW_LABEL, windowSpecs),
+    );
+  } else {
+    Object.assign(tauriConf.pake.windows[0], {
+      url,
+      label: MAIN_WINDOW_LABEL,
+      ...tauriConfWindowOptions,
+    });
+    await removeGeneratedCapabilitiesFile();
+  }
 
   tauriConf.productName = name;
   tauriConf.identifier = identifier;
