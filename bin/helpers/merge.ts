@@ -94,13 +94,13 @@ type TauriCapability = {
   $schema?: string;
   identifier: string;
   description?: string;
-  webviews: string[];
+  webviews?: string[];
   remote?: { urls: string[] };
   permissions: string[];
 };
 
 export async function generateCapabilitiesFile(
-  labels: string[],
+  _labels: string[],
 ): Promise<void> {
   const defaultCapabilityPath = path.join(
     npmDirectory,
