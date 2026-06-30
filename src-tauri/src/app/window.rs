@@ -6,7 +6,10 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     str::FromStr,
-    sync::{atomic::{AtomicU32, Ordering}, Mutex},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Mutex,
+    },
 };
 use tauri::{
     webview::{DownloadEvent, NewWindowFeatures, NewWindowResponse},
@@ -123,10 +126,7 @@ pub fn open_window_by_label(app: &AppHandle, label: &str) -> tauri::Result<Webvi
         .pake_config
         .resolve_window_config(label)
         .map_err(|error| {
-            tauri::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                error,
-            ))
+            tauri::Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, error))
         })?;
 
     let window = build_window_with_config(
@@ -150,10 +150,7 @@ pub fn open_route_template_window(
         .pake_config
         .window_config_by_label(template_label)
         .map_err(|error| {
-            tauri::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                error,
-            ))
+            tauri::Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, error))
         })?;
     let instance_label = state.next_route_instance_label(template_label);
     let window = build_window_with_config(
@@ -243,16 +240,12 @@ fn open_requested_window(
 ) -> tauri::Result<WebviewWindow> {
     let state = app.state::<MultiWindowState>();
     let label = state.next_popup_label();
-    let popup_config = config
-        .windows
-        .first()
-        .cloned()
-        .ok_or_else(|| {
-            tauri::Error::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "pake.json must define at least one window configuration",
-            ))
-        })?;
+    let popup_config = config.windows.first().cloned().ok_or_else(|| {
+        tauri::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "pake.json must define at least one window configuration",
+        ))
+    })?;
     let window = build_window(
         app,
         config,

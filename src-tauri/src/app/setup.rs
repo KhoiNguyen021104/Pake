@@ -51,9 +51,7 @@ pub fn set_system_tray(
                 builder = builder.item(item);
             }
         }
-        builder
-            .items(&[&hide_app, &show_app, &quit])
-            .build()?
+        builder.items(&[&hide_app, &show_app, &quit]).build()?
     } else {
         MenuBuilder::new(app)
             .items(&[&hide_app, &show_app, &quit])

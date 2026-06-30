@@ -1,9 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import logger from '../../bin/options/logger';
-import {
-  validateWindowSpecs,
-  MAIN_WINDOW_LABEL,
-} from '../../bin/utils/window';
+import { validateWindowSpecs, MAIN_WINDOW_LABEL } from '../../bin/utils/window';
 
 describe('validateWindowSpecs', () => {
   beforeEach(() => {
@@ -13,9 +10,13 @@ describe('validateWindowSpecs', () => {
 
   it('rejects reserved main label', () => {
     expect(() =>
-      validateWindowSpecs([`${MAIN_WINDOW_LABEL}=/dashboard`], 'https://a.com', {
-        exitOnError: false,
-      }),
+      validateWindowSpecs(
+        [`${MAIN_WINDOW_LABEL}=/dashboard`],
+        'https://a.com',
+        {
+          exitOnError: false,
+        },
+      ),
     ).toThrow(/reserved for the main window/);
   });
 
