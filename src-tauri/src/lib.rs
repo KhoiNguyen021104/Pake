@@ -163,13 +163,14 @@ pub fn run_app() {
     let _enable_find = pake_config.windows[0].enable_find;
 
     let window_state_plugin = WindowStatePlugin::default()
-        .with_state_flags(if init_fullscreen {
-            StateFlags::FULLSCREEN
-        } else {
-            // Prevent flickering on the first open.
-            StateFlags::all() & !StateFlags::VISIBLE
-        })
-        .build();
+    .with_state_flags(if init_fullscreen {
+        StateFlags::FULLSCREEN
+    } else {
+        // Prevent flickering on the first open; never let disk state
+        // override decorations — that's controlled by pake.json per window.
+        StateFlags::all() & !StateFlags::VISIBLE & !StateFlags::DECORATIONS
+    })
+    .build();
 
     #[allow(deprecated)]
     let mut app_builder = tauri_app

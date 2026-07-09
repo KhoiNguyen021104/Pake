@@ -371,8 +371,11 @@ fn build_window(
         }
     });
 
+    let is_main_window = label == config.main_window_label();
+
     let mut window_builder = WebviewWindowBuilder::new(app, label, url)
         .title(effective_title)
+        .decorations(is_main_window)
         .visible(visible)
         .user_agent(user_agent)
         .resizable(window_config.resizable)
