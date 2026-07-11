@@ -452,7 +452,13 @@ fn build_window(
     // flag), and toast must register `window.pakeToast` before Rust code
     // calls show_toast().
     window_builder = window_builder
-        .initialization_script(&config_script)
+        .initialization_script(&config_script);
+
+    if !is_main_window {
+        window_builder = window_builder.initialization_script(include_str!("../inject/hover_titlebar.js"));
+    }
+
+    window_builder = window_builder
         .initialization_script(include_str!("../inject/find.js"))
         .initialization_script(include_str!("../inject/toast.js"))
         .initialization_script(include_str!("../inject/fullscreen.js"))

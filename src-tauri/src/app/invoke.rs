@@ -210,3 +210,29 @@ pub fn open_pake_window(app: AppHandle, label: String) -> Result<(), String> {
     open_route_template_window_safe(&app, &label);
     Ok(())
 }
+
+#[command]
+pub fn set_window_decorations(window: WebviewWindow, show: bool) -> Result<(), String> {
+    window.set_decorations(show).map_err(|e| e.to_string())?;
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let is_maximized = window.is_maximized().unwrap_or(false);
+        let is_fullscreen = window.is_fullscreen().unwrap_or(false);
+
+        if !is_maximized && !is_fullscreen {
+            if let (Ok(mut size), Ok(scale_factor)) = (window.inner_size(), window.scale_factor()) {
+                let delta = (32.0 * scale_factor).round() as u32;
+                if show {
+                    size.height = size.height.saturating_add(delta);
+                } else {
+                    size.height = size.height.saturating_sub(delta);
+                }
+                window.set_size(tauri::Size::Physical(size)).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
