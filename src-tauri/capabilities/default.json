@@ -2,13 +2,23 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "pake-capability",
   "description": "Capability for the pake app.",
-  "webviews": ["pake"],
+  "webviews": ["*"],
   "remote": {
-    "urls": ["https://*.*"]
+    "urls": [
+      "https://*.*",
+      "http://localhost:*",
+      "http://127.0.0.1:*"
+    ]
   },
   "permissions": [
     "shell:allow-open",
     "core:window:allow-theme",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-create-webview",
+    "core:window:allow-create",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-fullscreen",
