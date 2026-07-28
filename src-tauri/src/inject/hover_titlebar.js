@@ -1,4 +1,4 @@
-(function() {
+(function () {
   if (window.__pakeHoverTitlebar) return;
   window.__pakeHoverTitlebar = true;
 
@@ -39,7 +39,7 @@
   }
 
   // When the mouse is anywhere inside the webview document, show the title bar
-  document.addEventListener('mousemove', () => {
+  document.addEventListener("mousemove", () => {
     if (hideTimeout) {
       clearTimeout(hideTimeout);
       hideTimeout = null;
@@ -48,7 +48,7 @@
   });
 
   // When the mouse leaves the webview document (moving to the desktop or the native title bar)
-  document.addEventListener('mouseleave', () => {
+  document.addEventListener("mouseleave", () => {
     if (hideTimeout) {
       clearTimeout(hideTimeout);
       hideTimeout = null;

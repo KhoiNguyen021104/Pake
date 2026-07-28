@@ -451,11 +451,11 @@ fn build_window(
     // any script that reads it (e.g. fullscreen polyfill checks for an opt-out
     // flag), and toast must register `window.pakeToast` before Rust code
     // calls show_toast().
-    window_builder = window_builder
-        .initialization_script(&config_script);
+    window_builder = window_builder.initialization_script(&config_script);
 
     if !is_main_window {
-        window_builder = window_builder.initialization_script(include_str!("../inject/hover_titlebar.js"));
+        window_builder =
+            window_builder.initialization_script(include_str!("../inject/hover_titlebar.js"));
     }
 
     window_builder = window_builder

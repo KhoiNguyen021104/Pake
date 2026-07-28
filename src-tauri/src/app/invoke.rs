@@ -228,11 +228,12 @@ pub fn set_window_decorations(window: WebviewWindow, show: bool) -> Result<(), S
                 } else {
                     size.height = size.height.saturating_sub(delta);
                 }
-                window.set_size(tauri::Size::Physical(size)).map_err(|e| e.to_string())?;
+                window
+                    .set_size(tauri::Size::Physical(size))
+                    .map_err(|e| e.to_string())?;
             }
         }
     }
 
     Ok(())
 }
-
