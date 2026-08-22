@@ -7,13 +7,14 @@ Tài liệu này tổng hợp toàn bộ các lệnh cần thiết để chuẩn
 ## 1. Yêu Cầu Môi Trường (Prerequisites)
 
 Trước khi chạy bất kỳ lệnh nào, hãy đảm bảo máy tính đã cài đặt các công cụ sau:
+
 1. **Node.js**: Phiên bản `>= 18.0.0`.
 2. **pnpm**: Trình quản lý package của Node (khuyên dùng).
 3. **Rust Toolchain**: Cài đặt thông qua [rustup.rs](https://rustup.rs/).
 4. **Cấu hình Native SDK từng hệ điều hành**:
-   * **Windows**: Visual Studio Build Tools (C++ Cài đặt kèm theo MSVC v143 và Windows 10/11 SDK).
-   * **macOS**: Xcode Command Line Tools (`xcode-select --install`).
-   * **Linux (Ubuntu/Debian)**: Cài đặt các thư viện hệ thống:
+   - **Windows**: Visual Studio Build Tools (C++ Cài đặt kèm theo MSVC v143 và Windows 10/11 SDK).
+   - **macOS**: Xcode Command Line Tools (`xcode-select --install`).
+   - **Linux (Ubuntu/Debian)**: Cài đặt các thư viện hệ thống:
      ```bash
      sudo apt update
      sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
@@ -44,13 +45,14 @@ Sử dụng Pake CLI đã biên dịch ở trên (`dist/cli.js`) để đóng g�
 
 ### A. Dành cho Windows (Đóng gói ra `.exe` / `.msi`)
 
-* **Nếu chạy trên Git Bash (Khuyên dùng)**:
+- **Nếu chạy trên Git Bash (Khuyên dùng)**:
   Sử dụng tiền tố `MSYS_NO_PATHCONV=1` để ngăn trình giả lập Bash tự dịch sai đường dẫn `/live` của tham số `--window`:
+
   ```bash
   MSYS_NO_PATHCONV=1 node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --multi-window --show-system-tray
   ```
 
-* **Nếu chạy trên Windows PowerShell**:
+- **Nếu chạy trên Windows PowerShell**:
   ```powershell
   node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --multi-window --show-system-tray
   ```
@@ -58,6 +60,7 @@ Sử dụng Pake CLI đã biên dịch ở trên (`dist/cli.js`) để đóng g�
 ### B. Dành cho macOS (Đóng gói ra `.app` / `.dmg`)
 
 Chạy trực tiếp trong Terminal của macOS (zsh/bash):
+
 ```bash
 node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --multi-window --show-system-tray
 ```
@@ -65,6 +68,7 @@ node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --
 ### C. Dành cho Linux (Đóng gói ra `.AppImage` / `.deb`)
 
 Chạy trong Terminal Linux:
+
 ```bash
 node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --multi-window --show-system-tray
 ```
@@ -73,11 +77,11 @@ node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --
 
 ## 4. Các Tham Số CLI Quan Trọng Khi Đóng Gói (Vbee / CloudCamera)
 
-* `--name <TênApp>`: Đặt tên cho file cài đặt và ứng dụng khi hiển thị.
-* `--window <nhãn>=<đường_dẫn>`: Khai báo router/đường dẫn cho cửa sổ phụ (Ví dụ: `live=/live` để định nghĩa cửa sổ live stream).
-* `--multi-window`: Kích hoạt chế độ đa cửa sổ (Bắt buộc phải có để Vbee mở được camera con).
-* `--show-system-tray`: Hiển thị icon ứng dụng ở khay hệ thống (System Tray).
-* `--width <px>` & `--height <px>`: Thiết lập kích thước cửa sổ mặc định (ví dụ: `--width 1200 --height 800`).
+- `--name <TênApp>`: Đặt tên cho file cài đặt và ứng dụng khi hiển thị.
+- `--window <nhãn>=<đường_dẫn>`: Khai báo router/đường dẫn cho cửa sổ phụ (Ví dụ: `live=/live` để định nghĩa cửa sổ live stream).
+- `--multi-window`: Kích hoạt chế độ đa cửa sổ (Bắt buộc phải có để Vbee mở được camera con).
+- `--show-system-tray`: Hiển thị icon ứng dụng ở khay hệ thống (System Tray).
+- `--width <px>` & `--height <px>`: Thiết lập kích thước cửa sổ mặc định (ví dụ: `--width 1200 --height 800`).
 
 ---
 
@@ -105,11 +109,11 @@ pnpm run build:debug
 
 Nếu quá trình build bị chậm do tải tài nguyên từ máy chủ Rust/Cargo nước ngoài, bạn có thể gán biến môi trường sử dụng kho tải gương (Mirror) trước lệnh chạy:
 
-* **Môi trường Bash (Mac, Linux, Git Bash Windows)**:
+- **Môi trường Bash (Mac, Linux, Git Bash Windows)**:
   ```bash
   PAKE_USE_CN_MIRROR=1 node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --multi-window --show-system-tray
   ```
-* **Môi trường PowerShell (Windows)**:
+- **Môi trường PowerShell (Windows)**:
   ```powershell
   $env:PAKE_USE_CN_MIRROR=1; node dist/cli.js http://localhost:4201 --name CloudCamera --window live=/live --multi-window --show-system-tray
   ```
