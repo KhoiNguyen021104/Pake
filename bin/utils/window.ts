@@ -53,7 +53,15 @@ export function isValidWindowLabel(label: string): boolean {
   return LABEL_PATTERN.test(label);
 }
 
+export function isHttpUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
 export function resolveWindowUrl(baseUrl: string, path: string): string {
+  if (!isHttpUrl(baseUrl)) {
+    return path;
+  }
+
   if (path.startsWith('/') || path.startsWith('./') || path.startsWith('../')) {
     return new URL(path, baseUrl).href;
   }
@@ -66,6 +74,9 @@ export function resolveWindowUrl(baseUrl: string, path: string): string {
 }
 
 export function getUrlOrigin(url: string): string {
+  if (!isHttpUrl(url)) {
+    return 'local';
+  }
   return new URL(url).origin;
 }
 
@@ -91,6 +102,7 @@ export function validateWindowSpecs(
     return [];
   }
 
+  const isLocal = !isHttpUrl(baseUrl);
   const baseOrigin = getUrlOrigin(baseUrl);
   const seen = new Set<string>();
   const parsed: ParsedWindowSpec[] = [];
@@ -120,7 +132,7 @@ export function validateWindowSpecs(
     }
     seen.add(entry.label);
 
-    if (isWindowsFilePath(entry.path)) {
+    if (!isLocal && isWindowsFilePath(entry.path)) {
       fail(
         `Window path "${entry.path}" looks like a Windows file path (Git Bash may have rewritten /route). ` +
           'Use MSYS_NO_PATHCONV=1 before the command, quote the value (--window "live=/live"), ' +
@@ -129,15 +141,17 @@ export function validateWindowSpecs(
     }
 
     const resolved = resolveWindowUrl(baseUrl, entry.path);
-    try {
-      const resolvedOrigin = getUrlOrigin(resolved);
-      if (resolvedOrigin !== baseOrigin) {
-        logger.warn(
-          `✼ Window "${entry.label}" URL origin (${resolvedOrigin}) differs from main URL origin (${baseOrigin}). Session/CORS issues may occur.`,
-        );
+    if (!isLocal) {
+      try {
+        const resolvedOrigin = getUrlOrigin(resolved);
+        if (resolvedOrigin !== baseOrigin) {
+          logger.warn(
+            `✼ Window "${entry.label}" URL origin (${resolvedOrigin}) differs from main URL origin (${baseOrigin}). Session/CORS issues may occur.`,
+          );
+        }
+      } catch {
+        fail(`Invalid path for window "${entry.label}": ${entry.path}`);
       }
-    } catch {
-      fail(`Invalid path for window "${entry.label}": ${entry.path}`);
     }
 
     parsed.push(entry);

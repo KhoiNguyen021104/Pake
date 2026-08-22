@@ -210,6 +210,24 @@ async function handleLocalFile(
 
     tauriConf.pake.windows[0].url = fileName;
     tauriConf.pake.windows[0].url_type = 'local';
+
+    if (tauriConf.pake.windows.length > 1) {
+      for (let i = 1; i < tauriConf.pake.windows.length; i++) {
+        const win = tauriConf.pake.windows[i];
+        win.url_type = 'local';
+        let route = win.url || '';
+        if (route.includes('#')) {
+          const hashPart = route.slice(route.indexOf('#'));
+          win.url = `${fileName}${hashPart}`;
+        } else if (route.startsWith('/')) {
+          win.url = `${fileName}#${route}`;
+        } else if (route.startsWith('#')) {
+          win.url = `${fileName}${route}`;
+        } else if (!route.startsWith(fileName)) {
+          win.url = `${fileName}#/${route}`;
+        }
+      }
+    }
   } else {
     tauriConf.pake.windows[0].url_type = 'web';
   }
