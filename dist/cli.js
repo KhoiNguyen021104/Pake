@@ -162,7 +162,10 @@ const { platform: platform$2 } = process;
 const platformConfig = platformConfigs[platform$2];
 let tauriConfig = {
     ...CommonConf,
-    bundle: platformConfig.bundle,
+    bundle: {
+        ...(CommonConf?.bundle ?? {}),
+        ...(platformConfig?.bundle ?? {}),
+    },
     app: {
         ...CommonConf.app,
         trayIcon: {

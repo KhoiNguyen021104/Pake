@@ -30,7 +30,10 @@ const platformConfig = platformConfigs[platform];
 
 let tauriConfig = {
   ...CommonConf,
-  bundle: platformConfig.bundle,
+  bundle: {
+    ...(CommonConf?.bundle ?? {}),
+    ...(platformConfig?.bundle ?? {}),
+  },
   app: {
     ...CommonConf.app,
     trayIcon: {

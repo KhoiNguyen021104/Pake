@@ -3,6 +3,7 @@ mod app;
 mod util;
 
 use tauri::Manager;
+use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_window_state::Builder as WindowStatePlugin;
 use tauri_plugin_window_state::StateFlags;
 
@@ -175,6 +176,8 @@ pub fn run_app() {
     #[allow(deprecated)]
     let mut app_builder = tauri_app
         .plugin(window_state_plugin)
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
@@ -267,6 +270,54 @@ pub fn run_app() {
                     }
                 });
             }
+
+            // Check for updates in background after startup
+            let update_handle = app.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                println!("[Auto-Update] Checking for updates...");
+                match update_handle.updater() {
+                    Ok(updater) => match updater.check().await {
+                        Ok(Some(update)) => {
+                            println!("[Auto-Update] Found new version: {}", update.version);
+                            let mut downloaded = 0;
+                            match update
+                                .download_and_install(
+                                    |chunk_length, content_length| {
+                                        downloaded += chunk_length;
+                                        println!(
+                                            "[Auto-Update] Downloaded {}/{} bytes",
+                                            downloaded,
+                                            content_length.unwrap_or(0)
+                                        );
+                                    },
+                                    || {
+                                        println!("[Auto-Update] Download complete, installing...");
+                                    },
+                                )
+                                .await
+                            {
+                                Ok(_) => {
+                                    println!("[Auto-Update] Update installed successfully, restarting app...");
+                                    update_handle.restart();
+                                }
+                                Err(err) => {
+                                    eprintln!("[Auto-Update] Failed to install update: {:?}", err);
+                                }
+                            }
+                        }
+                        Ok(None) => {
+                            println!("[Auto-Update] App is up to date (no newer version).");
+                        }
+                        Err(err) => {
+                            eprintln!("[Auto-Update] Failed to check for updates: {:?}", err);
+                        }
+                    },
+                    Err(err) => {
+                        eprintln!("[Auto-Update] Updater plugin not initialized: {:?}", err);
+                    }
+                }
+            });
 
             Ok(())
         })
