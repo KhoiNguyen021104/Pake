@@ -20,7 +20,8 @@
 *.suo
 *.sw?
 *.tmp
-# Local AI assistant overrides (shared docs AGENTS.md / CLAUDE.md / .claude are tracked)
+# Local AI assistant overrides (shared docs AGENTS.md / CLAUDE.md / .claude are track
+ed)
 CLAUDE.local.md
 AGENTS.override.md
 .claude/settings.local.json
@@ -29,6 +30,7 @@ AGENTS.override.md
 # Logs
 AGENT.md
 dist
+dist_bak/
 dist-ssr
 journal/
 lerna-debug.log*
