@@ -349,6 +349,7 @@ interface VbeeBroadcastEnvelope<T = any> {
 
 - Khi ghim sự kiện đóng native của hệ điều hành (`onCloseRequested`), việc sử dụng lệnh đồng bộ chặn luồng (`window.confirm`) sẽ đóng băng tiến trình giao tiếp IPC giữa Webview và Rust, gây ra hiện tượng đơ/lag cửa sổ.
 - Thay vào đó, ứng dụng sử dụng `<Modal.confirm>` bất đồng bộ của Ant Design:
+
   ```javascript
   win.onCloseRequested(async (event) => {
     if (isClosingRef.current) return;
