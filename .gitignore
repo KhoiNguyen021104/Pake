@@ -11,17 +11,40 @@
 *.deb
 *.desktop
 *.dmg
+*.exe
+*.zip
+*.rpm
+*.msi
+*.sig
 *.local
 *.log
-*.msi
 *.njsproj
 *.ntvs*
 *.sln
 *.suo
 *.sw?
 *.tmp
-# Local AI assistant overrides (shared docs AGENTS.md / CLAUDE.md / .claude are track
-ed)
+
+# Security: Private Keys, Public Keys & Certificates
+*.key
+*.key.pub
+cloudcamera*.key
+cloudcamera*.key.pub
+*.pem
+*.crt
+*.pfx
+*.p12
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Rust Build target
+src-tauri/target/
+target/
+
+# Local AI assistant overrides (shared docs AGENTS.md / CLAUDE.md / .claude are tracked)
 CLAUDE.local.md
 AGENTS.override.md
 .claude/settings.local.json
@@ -29,7 +52,7 @@ AGENTS.override.md
 # Editor directories and files
 # Logs
 AGENT.md
-dist
+dist/
 dist_bak/
 dist-ssr
 journal/
